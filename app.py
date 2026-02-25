@@ -41,7 +41,7 @@ CLIENT_SECRET = os.environ.get("VT_CLIENT_SECRET", "TkbGv1zqYIErrutV8D_1Bg3o2Kwa
 
 TOKEN_URL = "https://ext-api.vasttrafik.se/token"
 POSITIONS_URL = "https://ext-api.vasttrafik.se/pr/v4/positions"
-POLL_INTERVAL = 10  # sekunder (Vasttrafik har rate-limit)
+POLL_INTERVAL = 2  # sekunder
 
 # Goteborgsomradet (bounding box for /positions, utokad for att fa med farjor)
 GBG_LOWER_LAT = 57.55
