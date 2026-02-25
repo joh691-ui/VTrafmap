@@ -263,10 +263,10 @@ def api_routes():
 # Startup - kors bade av gunicorn och direkt (python app.py)
 # ---------------------------------------------------------------------------
 
-print("\n  Vasttrafik Live Map - LIVE DATA")
+print("\n  Vasttrafik Live Map")
 print(f"  OAuth2 Client: {CLIENT_ID[:12]}...")
 
-# Hamta forsta token
+# Hamta forsta token (snabbt, ett anrop)
 print("  Hamtar access token...")
 token = get_access_token()
 if token:
@@ -274,17 +274,11 @@ if token:
 else:
     print("  FEL: Kunde inte hamta token!")
 
-# Forsta hamtning (synkron sa vi har data direkt)
-print("  Hamtar forsta omgangen positioner...")
-fetch_positions()
-print(f"  {_last_fetch_count} fordon i Goteborgsomradet")
-
-# Starta bakgrundspolling
+# Starta bakgrundspolling (forsta hamtning sker dar, ej blockerar start)
 poller = threading.Thread(target=polling_loop, daemon=True)
 poller.start()
-print("  Bakgrundspolling aktiv (var 2:a sekund)")
+print("  Bakgrundspolling startad - fordon laddas inom nagra sekunder")
 
 if __name__ == "__main__":
     print("  Oppna http://127.0.0.1:5000 i din webblasare\n")
     app.run(debug=False, port=5000, threaded=True)
-
