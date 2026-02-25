@@ -110,11 +110,11 @@ def get_access_token():
             resp.raise_for_status()
             data = resp.json()
             _access_token = data["access_token"]
-            # Token ar vanligtvis giltig i 3600 sekunder
             _token_expires = time.time() + data.get("expires_in", 3600)
+            print(f"  [Auth] Ny token hamtad: {_access_token[:10]}...", flush=True)
             return _access_token
         except Exception as e:
-            print(f"  FEL vid tokenhamtning: {e}")
+            print(f"  [Auth] FEL vid tokenhamtning: {e}", flush=True)
             return _access_token  # Ateranvand gammal token om mojligt
 
 
@@ -231,6 +231,8 @@ def fetch_positions():
         _cached_vehicles = processed
         _last_fetch_time = time.time()
         _last_fetch_count = len(processed)
+    
+    print(f"  [Fetch] Klart: {len(processed)} fordon uppdaterade", flush=True)
 
 
 def polling_loop():
