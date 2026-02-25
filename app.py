@@ -139,46 +139,49 @@ def fetch_positions():
     errors = 0
 
     def fetch_cell(row, col):
-        """Hamta fordon for en ruta i rutnatet."""
+        """Hamta fordon for en ruta i rutnatet, med retry vid rate-limit."""
         lat1 = GBG_LOWER_LAT + row * lat_step
         lon1 = GBG_LOWER_LON + col * lon_step
         lat2 = lat1 + lat_step
         lon2 = lon1 + lon_step
-        resp = http_requests.get(
-            POSITIONS_URL,
-            params={
-                "lowerLeftLat": round(lat1, 6),
-                "lowerLeftLong": round(lon1, 6),
-                "upperRightLat": round(lat2, 6),
-                "upperRightLong": round(lon2, 6),
-                "limit": 200,
-            },
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/json",
-            },
-            timeout=10,
-        )
-        resp.raise_for_status()
-        return resp.json()
+        for attempt in range(3):
+            try:
+                resp = http_requests.get(
+                    POSITIONS_URL,
+                    params={
+                        "lowerLeftLat": round(lat1, 6),
+                        "lowerLeftLong": round(lon1, 6),
+                        "upperRightLat": round(lat2, 6),
+                        "upperRightLong": round(lon2, 6),
+                        "limit": 200,
+                    },
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/json",
+                    },
+                    timeout=10,
+                )
+                if resp.status_code == 429:
+                    time.sleep(0.3 * (attempt + 1))
+                    continue
+                resp.raise_for_status()
+                return resp.json()
+            except Exception:
+                if attempt < 2:
+                    time.sleep(0.3 * (attempt + 1))
+        return []
 
-    # Kor alla rutor parallellt med ThreadPoolExecutor
+    # Kor rutor med begransad parallellism (4 at gangen)
     from concurrent.futures import ThreadPoolExecutor, as_completed
     cells = [(r, c) for r in range(GRID_SIZE) for c in range(GRID_SIZE)]
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(fetch_cell, r, c): (r, c) for r, c in cells}
         for future in as_completed(futures):
-            try:
-                vehicles = future.result()
-                for veh in vehicles:
-                    ref = veh.get("detailsReference", "")
-                    if ref and ref not in all_vehicles:
-                        all_vehicles[ref] = veh
-            except Exception as e:
-                errors += 1
-    
-    if errors > 0:
-        print(f"  {errors} fel vid hamtning av rutor")
+            vehicles = future.result()
+            for veh in vehicles:
+                ref = veh.get("detailsReference", "")
+                if ref and ref not in all_vehicles:
+                    all_vehicles[ref] = veh
     
     raw_vehicles = list(all_vehicles.values())
 
