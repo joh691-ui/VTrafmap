@@ -137,36 +137,40 @@ def fetch_positions():
     
     all_vehicles = {}  # detailsReference -> vehicle dict
     errors = 0
-    
-    for row in range(GRID_SIZE):
-        for col in range(GRID_SIZE):
-            lat1 = GBG_LOWER_LAT + row * lat_step
-            lon1 = GBG_LOWER_LON + col * lon_step
-            lat2 = lat1 + lat_step
-            lon2 = lon1 + lon_step
-            
-            # Liten paus for att undvika rate-limit (429)
-            if row > 0 or col > 0:
-                time.sleep(0.2)
-            
+
+    def fetch_cell(row, col):
+        """Hamta fordon for en ruta i rutnatet."""
+        lat1 = GBG_LOWER_LAT + row * lat_step
+        lon1 = GBG_LOWER_LON + col * lon_step
+        lat2 = lat1 + lat_step
+        lon2 = lon1 + lon_step
+        resp = http_requests.get(
+            POSITIONS_URL,
+            params={
+                "lowerLeftLat": round(lat1, 6),
+                "lowerLeftLong": round(lon1, 6),
+                "upperRightLat": round(lat2, 6),
+                "upperRightLong": round(lon2, 6),
+                "limit": 200,
+            },
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    # Kor alla rutor parallellt med ThreadPoolExecutor
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    cells = [(r, c) for r in range(GRID_SIZE) for c in range(GRID_SIZE)]
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(fetch_cell, r, c): (r, c) for r, c in cells}
+        for future in as_completed(futures):
             try:
-                resp = http_requests.get(
-                    POSITIONS_URL,
-                    params={
-                        "lowerLeftLat": round(lat1, 6),
-                        "lowerLeftLong": round(lon1, 6),
-                        "upperRightLat": round(lat2, 6),
-                        "upperRightLong": round(lon2, 6),
-                        "limit": 200,
-                    },
-                    headers={
-                        "Authorization": f"Bearer {token}",
-                        "Accept": "application/json",
-                    },
-                    timeout=10,
-                )
-                resp.raise_for_status()
-                for veh in resp.json():
+                vehicles = future.result()
+                for veh in vehicles:
                     ref = veh.get("detailsReference", "")
                     if ref and ref not in all_vehicles:
                         all_vehicles[ref] = veh

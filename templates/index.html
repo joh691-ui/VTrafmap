@@ -455,8 +455,13 @@
 
                 data.forEach(v => {
                     if (vehicleState[v.id]) {
-                        // Store current interpolated position as prev, set new target
                         const s = vehicleState[v.id];
+                        // Compute velocity from last segment
+                        const dt = (now - s.startTime) / 1000; // seconds
+                        if (dt > 0.1) {
+                            s.velocityLat = (v.lat - s.prevLat) / dt;
+                            s.velocityLon = (v.lon - s.prevLon) / dt;
+                        }
                         s.prevLat = s.currentLat ?? v.lat;
                         s.prevLon = s.currentLon ?? v.lon;
                         s.targetLat = v.lat;
@@ -471,6 +476,8 @@
                             currentLat: v.lat,
                             currentLon: v.lon,
                             startTime: now,
+                            velocityLat: 0,
+                            velocityLon: 0,
                         };
                     }
                 });
@@ -492,12 +499,21 @@
                 if (!activeTypes.has(v.type)) return;
 
                 const elapsed = now - s.startTime;
-                // Smooth easing: ease-out cubic
-                let t = Math.min(elapsed / POLL_MS, 1);
-                t = 1 - Math.pow(1 - t, 3);
+                let lat, lon;
 
-                const lat = s.prevLat + (s.targetLat - s.prevLat) * t;
-                const lon = s.prevLon + (s.targetLon - s.prevLon) * t;
+                if (elapsed < POLL_MS) {
+                    // Phase 1: Smooth ease-out interpolation to target
+                    let t = elapsed / POLL_MS;
+                    t = 1 - Math.pow(1 - t, 3); // ease-out cubic
+                    lat = s.prevLat + (s.targetLat - s.prevLat) * t;
+                    lon = s.prevLon + (s.targetLon - s.prevLon) * t;
+                } else {
+                    // Phase 2: Extrapolate beyond target using velocity
+                    const extraTime = (elapsed - POLL_MS) / 1000;
+                    lat = s.targetLat + s.velocityLat * extraTime;
+                    lon = s.targetLon + s.velocityLon * extraTime;
+                }
+
                 s.currentLat = lat;
                 s.currentLon = lon;
 
