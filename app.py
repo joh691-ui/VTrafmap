@@ -27,10 +27,10 @@ if os.path.exists(_routes_file):
     with open(_routes_file, "r", encoding="utf-8") as f:
         _raw = json.load(f)
         _tram_routes = list(_raw.values())
-    print(f"  Laddade {len(_tram_routes)} sparvagnsrutter fran tram_routes.json")
+    print(f"  Laddade {len(_tram_routes)} sparvagnsrutter fran tram_routes.json", flush=True)
 else:
-    print("  VARNING: tram_routes.json saknas - inga linjer pa kartan")
-    print("  Kor: python build_shapes.py DIN_API_NYCKEL")
+    print("  VARNING: tram_routes.json saknas - inga linjer pa kartan", flush=True)
+    print("  Kor: python build_shapes.py DIN_API_NYCKEL", flush=True)
 
 # ---------------------------------------------------------------------------
 # Konfiguration - Vasttrafik Planera Resa v4
@@ -146,6 +146,7 @@ def fetch_positions():
         lon2 = lon1 + lon_step
         for attempt in range(3):
             try:
+                current_token = get_access_token()
                 resp = http_requests.get(
                     POSITIONS_URL,
                     params={
@@ -156,7 +157,7 @@ def fetch_positions():
                         "limit": 200,
                     },
                     headers={
-                        "Authorization": f"Bearer {token}",
+                        "Authorization": f"Bearer {current_token}",
                         "Accept": "application/json",
                     },
                     timeout=10,
@@ -234,11 +235,20 @@ def fetch_positions():
 
 def polling_loop():
     """Bakgrundstrad som hamtar data kontinuerligt."""
+    global _access_token
+    
+    # Hamta forsta token inifran traden sa vi inte blockerar start
+    print("  [Thread] Hamtar access token...", flush=True)
+    try:
+        get_access_token()
+    except Exception as e:
+        print(f"  [Thread] Kunde inte hamta start-token: {e}", flush=True)
+
     while True:
         try:
             fetch_positions()
         except Exception as e:
-            print(f"  [ERROR] Polling misslyckades: {e}")
+            print(f"  [Thread] Polling misslyckades: {e}", flush=True)
         time.sleep(POLL_INTERVAL)
 
 
@@ -263,25 +273,17 @@ def api_routes():
 
 
 # ---------------------------------------------------------------------------
-# Startup - kors bade av gunicorn och direkt (python app.py)
+# Startup
 # ---------------------------------------------------------------------------
 
-print("\n  Vasttrafik Live Map")
-print(f"  OAuth2 Client: {CLIENT_ID[:12]}...")
+print("\n  Vasttrafik Live Map - Startar...", flush=True)
 
-# Hamta forsta token (snabbt, ett anrop)
-print("  Hamtar access token...")
-token = get_access_token()
-if token:
-    print(f"  Token OK: {token[:20]}...")
-else:
-    print("  FEL: Kunde inte hamta token!")
-
-# Starta bakgrundspolling (forsta hamtning sker dar, ej blockerar start)
+# Starta bakgrundspolling (allt natverksarbete sker dar)
 poller = threading.Thread(target=polling_loop, daemon=True)
 poller.start()
-print("  Bakgrundspolling startad - fordon laddas inom nagra sekunder")
+print("  Bakgrundstrad startad", flush=True)
 
 if __name__ == "__main__":
-    print("  Oppna http://127.0.0.1:5000 i din webblasare\n")
-    app.run(debug=False, port=5000, threaded=True)
+    port = int(os.environ.get("PORT", 5000))
+    print(f"  Oppna http://127.0.0.1:{port} i din webblasare\n", flush=True)
+    app.run(debug=False, host="0.0.0.0", port=port, threaded=True)
