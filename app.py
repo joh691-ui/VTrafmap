@@ -253,31 +253,31 @@ def api_routes():
 
 
 # ---------------------------------------------------------------------------
-# Start
+# Startup - kors bade av gunicorn och direkt (python app.py)
 # ---------------------------------------------------------------------------
 
+print("\n  Vasttrafik Live Map - LIVE DATA")
+print(f"  OAuth2 Client: {CLIENT_ID[:12]}...")
+
+# Hamta forsta token
+print("  Hamtar access token...")
+token = get_access_token()
+if token:
+    print(f"  Token OK: {token[:20]}...")
+else:
+    print("  FEL: Kunde inte hamta token!")
+
+# Forsta hamtning (synkron sa vi har data direkt)
+print("  Hamtar forsta omgangen positioner...")
+fetch_positions()
+print(f"  {_last_fetch_count} fordon i Goteborgsomradet")
+
+# Starta bakgrundspolling
+poller = threading.Thread(target=polling_loop, daemon=True)
+poller.start()
+print("  Bakgrundspolling aktiv (var 2:a sekund)")
+
 if __name__ == "__main__":
-    print("\n  Vasttrafik Live Map - LIVE DATA")
-    print(f"  OAuth2 Client: {CLIENT_ID[:12]}...")
-
-    # Hamta forsta token
-    print("  Hamtar access token...")
-    token = get_access_token()
-    if token:
-        print(f"  Token OK: {token[:20]}...")
-    else:
-        print("  FEL: Kunde inte hamta token!")
-        sys.exit(1)
-
-    # Forsta hamtning (synkron sa vi har data direkt)
-    print("  Hamtar forsta omgangen positioner...")
-    fetch_positions()
-    print(f"  {_last_fetch_count} fordon i Goteborgsomradet")
-
-    # Starta bakgrundspolling
-    poller = threading.Thread(target=polling_loop, daemon=True)
-    poller.start()
-    print("  Bakgrundspolling aktiv (var 2:a sekund)")
     print("  Oppna http://127.0.0.1:5000 i din webblasare\n")
-
     app.run(debug=False, port=5000, threaded=True)
+
