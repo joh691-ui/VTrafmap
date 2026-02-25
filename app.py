@@ -258,6 +258,24 @@ def polling_loop():
 # Flask-routes
 # ---------------------------------------------------------------------------
 
+_poller_started = False
+_poller_lock = threading.Lock()
+
+def start_poller_if_needed():
+    """Sakerstaller att bakgrundstraden startar i rätt process (worker)."""
+    global _poller_started
+    if not _poller_started:
+        with _poller_lock:
+            if not _poller_started:
+                poller = threading.Thread(target=polling_loop, daemon=True)
+                poller.start()
+                _poller_started = True
+                print("  [Main] Bakgrundstrad startad i worker", flush=True)
+
+@app.before_request
+def before_request():
+    start_poller_if_needed()
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -265,8 +283,15 @@ def index():
 
 @app.route("/api/vehicles")
 def api_vehicles():
+    count = 0
     with _cache_lock:
-        return jsonify(_cached_vehicles)
+        count = len(_cached_vehicles)
+        data = jsonify(_cached_vehicles)
+    
+    # Logga bara var 5:e anrop for att inte fylla loggen
+    if time.time() % 10 < 2:  # Slumpmassig loggning baserat på tid
+        print(f"  [API] Serverade {count} fordon", flush=True)
+    return data
 
 
 @app.route("/api/routes")
@@ -278,12 +303,9 @@ def api_routes():
 # Startup
 # ---------------------------------------------------------------------------
 
-print("\n  Vasttrafik Live Map - Startar...", flush=True)
+print("\n  Vasttrafik Live Map - App initierad", flush=True)
+# Traden startas nu via start_poller_if_needed() vid forsta anrop
 
-# Starta bakgrundspolling (allt natverksarbete sker dar)
-poller = threading.Thread(target=polling_loop, daemon=True)
-poller.start()
-print("  Bakgrundstrad startad", flush=True)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
