@@ -235,7 +235,10 @@ def fetch_positions():
 def polling_loop():
     """Bakgrundstrad som hamtar data kontinuerligt."""
     while True:
-        fetch_positions()
+        try:
+            fetch_positions()
+        except Exception as e:
+            print(f"  [ERROR] Polling misslyckades: {e}")
         time.sleep(POLL_INTERVAL)
 
 
