@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Västtrafik Live Map</title>
+    <meta name="description" content="Se Göteborgs kollektivtrafik röra sig i realtid på en karta.">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ── Reset & Base ───────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+
+        #map {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+        }
+
+        /* ── Header Overlay ─────────────────────────────────────────── */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 16px 24px;
+            background: linear-gradient(180deg, rgba(10,10,15,0.92) 0%, rgba(10,10,15,0.6) 70%, transparent 100%);
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header h1 .pulse-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00E676;
+            box-shadow: 0 0 8px rgba(0,230,118,0.6);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.8); }
+        }
+
+        .header .stats {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+            font-weight: 400;
+        }
+
+        .header .stats span {
+            color: rgba(255,255,255,0.85);
+            font-weight: 600;
+        }
+
+        /* ── Legend ──────────────────────────────────────────────────── */
+        .legend {
+            position: fixed;
+            bottom: 28px;
+            left: 24px;
+            z-index: 1000;
+            background: rgba(15, 15, 25, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 14px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+
+        .legend-title {
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.4);
+            margin-bottom: 2px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 4px 8px;
+            margin: 0 -8px;
+            border-radius: 6px;
+            transition: opacity 0.2s, background 0.2s;
+            user-select: none;
+        }
+
+        .legend-item:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .legend-item.inactive {
+            opacity: 0.3;
+        }
+
+        .legend-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.3);
+            flex-shrink: 0;
+        }
+
+        /* ── Leaflet Popup Override (Dark) ───────────────────────────── */
+        .leaflet-popup-content-wrapper {
+            background: rgba(18, 18, 28, 0.95) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #e8e8e8 !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6) !important;
+            padding: 0 !important;
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(18, 18, 28, 0.95) !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            box-shadow: none !important;
+        }
+
+        .leaflet-popup-content {
+            margin: 0 !important;
+            padding: 14px 18px !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 13px !important;
+            line-height: 1.5 !important;
+        }
+
+        .popup-line {
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .popup-line .type-badge {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.6);
+        }
+
+        .popup-dest {
+            color: rgba(255,255,255,0.55);
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .popup-speed {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.45);
+        }
+
+        .popup-speed svg {
+            opacity: 0.5;
+        }
+
+        /* ── Leaflet Controls Override ───────────────────────────────── */
+        .leaflet-control-zoom a {
+            background: rgba(15, 15, 25, 0.85) !important;
+            backdrop-filter: blur(8px);
+            color: #fff !important;
+            border-color: rgba(255,255,255,0.1) !important;
+        }
+
+        .leaflet-control-zoom a:hover {
+            background: rgba(30, 30, 45, 0.95) !important;
+        }
+
+        .leaflet-control-attribution {
+            background: rgba(0,0,0,0.6) !important;
+            color: rgba(255,255,255,0.35) !important;
+            font-size: 10px !important;
+        }
+
+        .leaflet-control-attribution a {
+            color: rgba(255,255,255,0.5) !important;
+        }
+
+        /* ── Vehicle Marker ─────────────────────────────────────────── */
+        .vehicle-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        .vehicle-marker:hover {
+            transform: scale(1.3);
+            z-index: 9999 !important;
+        }
+
+        /* Markers positioned by JS interpolation */
+
+        /* ── Mobile optimization ────────────────────────────────────── */
+        @media (max-width: 640px) {
+            .header h1 { font-size: 16px; }
+            .header { padding: 12px 16px; }
+            .legend { bottom: 16px; left: 12px; padding: 10px 14px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>
+            <div class="pulse-dot"></div>
+            Västtrafik Live Map
+        </h1>
+        <div class="stats">
+            <span id="vehicle-count">0</span> fordon · <span style="color:#00E676">Live</span>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+        <div class="legend-title">Trafikslag <span style="font-size:9px;opacity:0.5;text-transform:none;letter-spacing:0">(klicka för filter)</span></div>
+        <div class="legend-item" data-type="tram" onclick="toggleType('tram')">
+            <span style="font-size:14px">🚋</span>
+            Spårvagn
+        </div>
+        <div class="legend-item" data-type="bus" onclick="toggleType('bus')">
+            <span style="font-size:14px">🚌</span>
+            Buss
+        </div>
+        <div class="legend-item" data-type="train" onclick="toggleType('train')">
+            <span style="font-size:14px">🚆</span>
+            Pendeltåg
+        </div>
+        <div class="legend-item" data-type="boat" onclick="toggleType('boat')">
+            <span style="font-size:14px">⛴️</span>
+            Båt
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+    (() => {
+        // ── Map Setup ────────────────────────────────────────────────
+        const map = L.map('map', {
+            center: [57.7089, 11.9745],
+            zoom: 13,
+            zoomControl: false,
+            attributionControl: true,
+        });
+
+        // Zoom-knappar til hoger (sa de inte doljs av headern)
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/">CARTO</a>',
+            maxZoom: 19,
+            subdomains: 'abcd',
+        }).addTo(map);
+
+        // ── Tram Route Lines ──────────────────────────────────────────
+        const routeLines = [];
+
+        async function loadRoutes() {
+            try {
+                const res = await fetch('/api/routes');
+                const routes = await res.json();
+                routes.forEach(route => {
+                    if (!route.coords || route.coords.length < 2) return;
+                    const latlngs = route.coords.map(c => [c[0], c[1]]);
+                    // Outer glow line
+                    const glow = L.polyline(latlngs, {
+                        color: route.color === '#333333' ? '#666666' : route.color,
+                        weight: 6,
+                        opacity: 0.15,
+                        smoothFactor: 1,
+                        interactive: false,
+                    }).addTo(map);
+                    // Inner line
+                    const line = L.polyline(latlngs, {
+                        color: route.color === '#333333' ? '#888888' : route.color,
+                        weight: 3,
+                        opacity: 0.55,
+                        smoothFactor: 1,
+                        interactive: false,
+                    }).addTo(map);
+                    routeLines.push(glow, line);
+                });
+                console.log(`Loaded ${routes.length} tram routes`);
+            } catch (err) {
+                console.error('Failed to load routes:', err);
+            }
+        }
+        loadRoutes();
+
+        // ── Marker Management ────────────────────────────────────────
+        const markers = {};   // id → L.marker
+        const vehicleTypeMap = {}; // id → type
+        const BUS_MIN_ZOOM = 0;
+
+        // ── Type filter ──────────────────────────────────────────────
+        const activeTypes = new Set(['tram', 'bus', 'boat', 'train']);
+
+        window.toggleType = function(type) {
+            const el = document.querySelector(`.legend-item[data-type="${type}"]`);
+            if (activeTypes.has(type)) {
+                activeTypes.delete(type);
+                el.classList.add('inactive');
+            } else {
+                activeTypes.add(type);
+                el.classList.remove('inactive');
+            }
+            // Immediately refresh markers
+            if (lastData.length) updateMarkers(lastData, performance.now());
+        };
+
+        function getTypeLabel(type) {
+            const labels = { tram: 'Spårvagn', bus: 'Buss', boat: 'Båt', train: 'Pendeltåg' };
+            return labels[type] || type;
+        }
+
+        function getMarkerSize(type, zoom) {
+            if (type === 'bus') return zoom >= 16 ? 26 : 22;
+            if (type === 'boat') return zoom >= 16 ? 30 : 26;
+            if (type === 'train') return zoom >= 16 ? 30 : 26;
+            return zoom >= 16 ? 28 : 24; // tram
+        }
+
+        function getFontSize(type, zoom) {
+            if (type === 'bus') return zoom >= 16 ? 9 : 8;
+            if (type === 'train') return 10;
+            return zoom >= 16 ? 10 : 9;
+        }
+
+        function getTypeEmoji(type) {
+            const emojis = { tram: '🚋', bus: '🚌', boat: '⛴️', train: '🚆' };
+            return emojis[type] || '🚍';
+        }
+
+        function createIcon(vehicle, zoom) {
+            const size = getMarkerSize(vehicle.type, zoom);
+            const fontSize = getFontSize(vehicle.type, zoom);
+            const borderColor = vehicle.type === 'boat' ? 'rgba(0,229,255,0.5)' :
+                                vehicle.type === 'train' ? 'rgba(168,85,247,0.4)' :
+                                'rgba(255,255,255,0.35)';
+            // Use API-provided colors, handle dark backgrounds
+            let fillColor = vehicle.color || '#E4002B';
+            if (fillColor === '#000000' || fillColor === '#333333') fillColor = '#2a2a3a';
+            // Use API-provided foreground color
+            const textColor = vehicle.fgColor || '#ffffff';
+            const glowColor = vehicle.type === 'boat' ? 'rgba(0,229,255,0.3)' :
+                              vehicle.type === 'train' ? 'rgba(168,85,247,0.25)' :
+                              'rgba(0,0,0,0.35)';
+            const emoji = getTypeEmoji(vehicle.type);
+            const emojiSize = Math.max(12, Math.round(size * 0.55));
+            const borderRadius = vehicle.type === 'boat' ? '6px' :
+                                 vehicle.type === 'train' ? '6px' :
+                                 '50%';
+
+            return L.divIcon({
+                className: '',
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2],
+                popupAnchor: [0, -size / 2 - 4],
+                html: `<div class="vehicle-marker" style="
+                    width:${size}px;
+                    height:${size}px;
+                    background: ${fillColor};
+                    color: ${textColor};
+                    border: 2px solid ${borderColor};
+                    font-size: ${fontSize}px;
+                    border-radius: ${borderRadius};
+                    box-shadow: 0 0 12px ${glowColor}, 0 2px 6px rgba(0,0,0,0.4);
+                    position: relative;
+                ">${vehicle.line}<span style="
+                    position:absolute;
+                    top:-5px;
+                    right:-5px;
+                    font-size:${emojiSize}px;
+                    line-height:1;
+                    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+                    pointer-events:none;
+                ">${emoji}</span></div>`,
+            });
+        }
+
+        function createPopupContent(v) {
+            const lineColor = (v.color === '#000000' || v.color === '#333333') ? '#aaa' : v.color;
+            return `
+                <div class="popup-line">
+                    <span style="color:${lineColor}">${v.line}</span>
+                    <span class="type-badge">${getTypeLabel(v.type)}</span>
+                </div>
+                <div class="popup-dest">→ ${v.destination}</div>`;
+        }
+
+        // ── Data Fetching + Smooth Interpolation ─────────────────────
+        const countEl = document.getElementById('vehicle-count');
+        let lastData = [];
+        const POLL_MS = 10000;
+
+        // Position tracking for interpolation
+        const vehicleState = {};  // id → { prevLat, prevLon, targetLat, targetLon, startTime }
+
+        async function fetchVehicles() {
+            try {
+                const res = await fetch('/api/vehicles');
+                const data = await res.json();
+                const now = performance.now();
+
+                data.forEach(v => {
+                    if (vehicleState[v.id]) {
+                        // Store current interpolated position as prev, set new target
+                        const s = vehicleState[v.id];
+                        s.prevLat = s.currentLat ?? v.lat;
+                        s.prevLon = s.currentLon ?? v.lon;
+                        s.targetLat = v.lat;
+                        s.targetLon = v.lon;
+                        s.startTime = now;
+                    } else {
+                        vehicleState[v.id] = {
+                            prevLat: v.lat,
+                            prevLon: v.lon,
+                            targetLat: v.lat,
+                            targetLon: v.lon,
+                            currentLat: v.lat,
+                            currentLon: v.lon,
+                            startTime: now,
+                        };
+                    }
+                });
+
+                lastData = data;
+                updateMarkers(data, now);
+            } catch (err) {
+                console.error('Fetch error:', err);
+            }
+        }
+
+        function interpolate(now) {
+            requestAnimationFrame(interpolate);
+            if (!lastData.length) return;
+
+            lastData.forEach(v => {
+                const s = vehicleState[v.id];
+                if (!s || !markers[v.id]) return;
+                if (!activeTypes.has(v.type)) return;
+
+                const elapsed = now - s.startTime;
+                // Smooth easing: ease-out cubic
+                let t = Math.min(elapsed / POLL_MS, 1);
+                t = 1 - Math.pow(1 - t, 3);
+
+                const lat = s.prevLat + (s.targetLat - s.prevLat) * t;
+                const lon = s.prevLon + (s.targetLon - s.prevLon) * t;
+                s.currentLat = lat;
+                s.currentLon = lon;
+
+                if (map.hasLayer(markers[v.id])) {
+                    markers[v.id].setLatLng([lat, lon]);
+                }
+            });
+        }
+
+        function updateMarkers(data, now) {
+            const currentZoom = map.getZoom();
+            const activeIds = new Set();
+            let visibleCount = 0;
+
+            data.forEach(v => {
+                activeIds.add(v.id);
+
+                // Type filter + zoom filtering
+                const shouldShow = activeTypes.has(v.type) && (v.type !== 'bus' || currentZoom >= BUS_MIN_ZOOM);
+                vehicleTypeMap[v.id] = v.type;
+
+                if (markers[v.id]) {
+                    // Update existing marker
+                    if (shouldShow) {
+                        // Position set by interpolation loop
+                        markers[v.id].setIcon(createIcon(v, currentZoom));
+                        markers[v.id].getPopup().setContent(createPopupContent(v));
+                        if (!map.hasLayer(markers[v.id])) {
+                            markers[v.id].addTo(map);
+                        }
+                        visibleCount++;
+                    } else {
+                        if (map.hasLayer(markers[v.id])) {
+                            map.removeLayer(markers[v.id]);
+                        }
+                    }
+                } else if (shouldShow) {
+                    // Create new marker
+                    const marker = L.marker([v.lat, v.lon], {
+                        icon: createIcon(v, currentZoom),
+                        zIndexOffset: v.type === 'train' ? 300 : v.type === 'tram' ? 200 : v.type === 'boat' ? 100 : 0,
+                    }).addTo(map);
+                    marker.bindPopup(createPopupContent(v), { closeButton: false, maxWidth: 220 });
+                    markers[v.id] = marker;
+                    visibleCount++;
+                }
+            });
+
+            // Remove old markers + state
+            for (const id in markers) {
+                if (!activeIds.has(id)) {
+                    map.removeLayer(markers[id]);
+                    delete markers[id];
+                    delete vehicleState[id];
+                }
+            }
+
+            countEl.textContent = visibleCount;
+        }
+
+        // ── Zoom-based visibility update ─────────────────────────────
+        map.on('zoomend', () => {
+            if (lastData.length) updateMarkers(lastData, performance.now());
+        });
+
+        // ── Start polling + animation ────────────────────────────────
+        fetchVehicles();
+        setInterval(fetchVehicles, POLL_MS);
+        requestAnimationFrame(interpolate);
+    })();
+    </script>
+</body>
+</html>

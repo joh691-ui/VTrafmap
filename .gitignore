@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Stora data-filer (genereras av build-scripts)
+vt.zip
+trip_lookup.json
+
+# Test/debug
+test_*.py
