@@ -75,6 +75,27 @@
             font-weight: 600;
         }
 
+        /* ── Weather Widget ─────────────────────────────────────────── */
+        .weather {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.9);
+            background: rgba(255, 255, 255, 0.08);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            pointer-events: auto; /* Since header has pointer-events: none */
+        }
+
+        .weather-icon {
+            font-size: 16px;
+        }
+
+
         /* ── Legend ──────────────────────────────────────────────────── */
         .legend {
             position: fixed;
@@ -307,6 +328,10 @@
         </h1>
         <div class="stats">
             <span id="vehicle-count">0</span> fordon · <span style="color:#00E676">Live</span>
+        </div>
+        <div class="weather" id="weather-container" style="display: none;" title="Väderdata från SMHI SNOW1gv1">
+            <span class="weather-icon" id="weather-icon"></span>
+            <span id="weather-temp"></span>
         </div>
     </div>
 
@@ -676,6 +701,40 @@
                 { enableHighAccuracy: true }
             );
         };
+
+        // ── Weather Fetching ─────────────────────────────────────────
+        function getWeatherEmoji(symbolCode) {
+            // SMHI Wsymb2 mapping
+            const map = {
+                1: '☀️', 2: '🌤️', 3: '⛅', 4: '⛅', 5: '🌥️', 6: '☁️', 7: '🌫️',
+                8: '🌦️', 9: '🌧️', 10: '🌧️', 11: '⛈️', 12: '🌨️', 13: '🌨️', 14: '🌨️',
+                15: '🌨️', 16: '🌨️', 17: '❄️', 18: '🌧️', 19: '🌧️', 20: '🌧️', 21: '⛈️',
+                22: '🌨️', 23: '🌨️', 24: '🌨️', 25: '🌨️', 26: '🌨️', 27: '❄️'
+            };
+            return map[symbolCode] || '🌡️';
+        }
+
+        async function fetchWeather() {
+            try {
+                const res = await fetch('/api/weather');
+                if (!res.ok) return;
+                const data = await res.json();
+                
+                if (data.temp !== undefined && data.symbol !== undefined) {
+                    document.getElementById('weather-icon').textContent = getWeatherEmoji(data.symbol);
+                    // Format temperature to 1 decimal place if it has one
+                    const tempStr = Number.isInteger(data.temp) ? data.temp : data.temp.toFixed(1);
+                    document.getElementById('weather-temp').textContent = `${tempStr}°C`;
+                    document.getElementById('weather-container').style.display = 'flex';
+                }
+            } catch (err) {
+                console.error('Failed to fetch weather:', err);
+            }
+        }
+        
+        // Fetch weather initially and then every 30 minutes
+        fetchWeather();
+        setInterval(fetchWeather, 30 * 60 * 1000);
 
         // ── Start polling + animation ────────────────────────────────
         fetchVehicles();

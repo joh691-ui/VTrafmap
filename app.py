@@ -294,6 +294,50 @@ def api_vehicles():
     return data
 
 
+_weather_cache = None
+_weather_cache_time = 0
+_WEATHER_CACHE_TTL = 30 * 60  # 30 minuter caching (eftersom prognoser inte uppdateras så ofta)
+
+@app.route("/api/weather")
+def api_weather():
+    global _weather_cache, _weather_cache_time
+    
+    now = time.time()
+    if _weather_cache and (now - _weather_cache_time < _WEATHER_CACHE_TTL):
+        return jsonify(_weather_cache)
+        
+    try:
+        # Hämta prognos från SMHI SNOW1gv1
+        lon, lat = 11.97, 57.71
+        url = f"https://opendata-download-metfcst.smhi.se/api/category/snow1g/version/1/geotype/point/lon/{lon}/lat/{lat}/data.json"
+        
+        resp = http_requests.get(url, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        # Plocka ut första tidsserien (närmast i tid)
+        if "timeSeries" in data and len(data["timeSeries"]) > 0:
+            current = data["timeSeries"][0]["data"]
+            temp = current.get("air_temperature")
+            symbol = current.get("symbol_code")
+            
+            _weather_cache = {
+                "temp": temp,
+                "symbol": symbol
+            }
+            _weather_cache_time = now
+            return jsonify(_weather_cache)
+            
+    except Exception as e:
+        print(f"  [Weather API] FEL vid hämtning av väder: {e}", flush=True)
+        # Returnera gammal cache eller ett felmeddelande
+        if _weather_cache:
+            return jsonify(_weather_cache)
+            
+    return jsonify({"error": "Kunde inte hämta väder"}), 500
+
+
+
 @app.route("/api/routes")
 def api_routes():
     return jsonify(_tram_routes)
