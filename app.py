@@ -344,6 +344,51 @@ def api_routes():
 
 
 # ---------------------------------------------------------------------------
+# Västtrafik Traffic Situations (Störningsinformation)
+# ---------------------------------------------------------------------------
+
+TRAFFIC_SITUATIONS_URL = "https://ext-api.vasttrafik.se/ts/v1/traffic-situations"
+_traffic_cache = None
+_traffic_cache_time = 0
+_TRAFFIC_CACHE_TTL = 60  # 1 minuts caching
+
+@app.route("/api/traffic-situations")
+def api_traffic_situations():
+    global _traffic_cache, _traffic_cache_time
+    
+    now = time.time()
+    if _traffic_cache and (now - _traffic_cache_time < _TRAFFIC_CACHE_TTL):
+        return jsonify(_traffic_cache)
+        
+    token = get_access_token()
+    if not token:
+        return jsonify({"error": "Ingen åtkomst"}), 500
+
+    try:
+        resp = http_requests.get(
+            TRAFFIC_SITUATIONS_URL,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        
+        # Vi cachar hela svaret men kan filtrera vid behov senare
+        _traffic_cache = data
+        _traffic_cache_time = now
+        return jsonify(_traffic_cache)
+            
+    except Exception as e:
+        print(f"  [Traffic API] FEL: {e}", flush=True)
+        if _traffic_cache:
+            return jsonify(_traffic_cache)
+        return jsonify({"error": "Kunde inte hämta trafikinfo"}), 500
+
+
+# ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
 
