@@ -240,6 +240,17 @@
             color: rgba(255,255,255,0.5) !important;
         }
 
+        /* Stack zoom controls above locate button */
+        .leaflet-bottom.leaflet-right {
+            bottom: 82px !important;
+            right: 14px !important;
+        }
+
+        .leaflet-control-zoom {
+            margin-bottom: 0 !important;
+            margin-right: 10px !important;
+        }
+
         /* ── Vehicle Marker ─────────────────────────────────────────── */
         .vehicle-marker {
             display: flex;
@@ -551,8 +562,8 @@
             attributionControl: true,
         });
 
-        // Zoom-knappar til hoger (sa de inte doljs av headern)
-        L.control.zoom({ position: 'topright' }).addTo(map);
+        // Zoom-knappar nere till höger (ovanför positions-knappen)
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/">CARTO</a>',
