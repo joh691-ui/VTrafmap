@@ -90,6 +90,13 @@
             border-radius: 20px;
             border: 1px solid rgba(255,255,255,0.1);
             pointer-events: auto; /* Since header has pointer-events: none */
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .weather:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
         }
 
         .weather-icon {
@@ -491,7 +498,7 @@
         <div class="stats">
             <span id="vehicle-count">0</span> fordon · <span style="color:#00E676">Live</span>
         </div>
-        <div class="weather" id="weather-container" style="display: none;" title="Vaderdata fran SMHI SNOW1gv1">
+        <div class="weather" id="weather-container" style="display: none;" title="Se prognos på SMHI" onclick="window.open('https://www.smhi.se/vader/prognoser-och-varningar/vaderprognos/q/G%C3%B6teborg/2711537', '_blank')">
             <span class="weather-icon" id="weather-icon"></span>
             <span id="weather-temp"></span>
         </div>
