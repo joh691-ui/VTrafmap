@@ -347,10 +347,10 @@ def api_routes():
 # Västtrafik Traffic Situations (Störningsinformation)
 # ---------------------------------------------------------------------------
 
-TRAFFIC_SITUATIONS_URL = "https://ext-api.vasttrafik.se/ts/v1/traffic-situations"
+TRAFFIC_SITUATIONS_URL = "https://www.vasttrafik.se/api/trafficsituations/all"
 _traffic_cache = None
 _traffic_cache_time = 0
-_TRAFFIC_CACHE_TTL = 60  # 1 minuts caching
+_TRAFFIC_CACHE_TTL = 300  # 5 minuters caching
 
 @app.route("/api/traffic-situations")
 def api_traffic_situations():
@@ -360,29 +360,27 @@ def api_traffic_situations():
     if _traffic_cache and (now - _traffic_cache_time < _TRAFFIC_CACHE_TTL):
         return jsonify(_traffic_cache)
         
-    token = get_access_token()
-    if not token:
-        return jsonify({"error": "Ingen åtkomst"}), 500
-
     try:
+        # Denna endpoint kräver x-requested-with: XMLHttpRequest
+        # Den kräver inte OAuth2-token men vi skickar med en vanlig User-Agent
         resp = http_requests.get(
             TRAFFIC_SITUATIONS_URL,
             headers={
-                "Authorization": f"Bearer {token}",
+                "x-requested-with": "XMLHttpRequest",
                 "Accept": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
             },
             timeout=10,
         )
         resp.raise_for_status()
         data = resp.json()
         
-        # Vi cachar hela svaret men kan filtrera vid behov senare
         _traffic_cache = data
         _traffic_cache_time = now
         return jsonify(_traffic_cache)
             
     except Exception as e:
-        print(f"  [Traffic API] FEL: {e}", flush=True)
+        print(f"  [Traffic API] FEL vid hämtning: {e}", flush=True)
         if _traffic_cache:
             return jsonify(_traffic_cache)
         return jsonify({"error": "Kunde inte hämta trafikinfo"}), 500

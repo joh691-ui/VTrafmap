@@ -955,14 +955,20 @@
             }
 
             content.innerHTML = trafficData.map(item => {
-                const severityClass = item.severity === 'critical' ? 'severity-critical' : 
-                                     (item.severity === 'warning' ? 'severity-warning' : 'severity-normal');
+                // Map severity from vasttrafik.se API (slight, normal, severe)
+                const severityClass = item.severity === 'severe' ? 'severity-critical' : 
+                                     (item.severity === 'normal' ? 'severity-warning' : 'severity-normal');
                 
-                const linesHtml = (item.affectedLines || []).map(line => `
-                    <span class="line-pill" style="background:${line.backgroundColor || '#333'}; color:${line.textColor || '#fff'}">
-                        ${line.designation}
-                    </span>
-                `).join('');
+                const linesHtml = (item.affectedLines || []).map(line => {
+                    // vasttrafik.se API uses backgroundColor/textColor or just designation
+                    const bg = line.backgroundColor || '#333';
+                    const fg = line.textColor || '#fff';
+                    return `
+                        <span class="line-pill" style="background:${bg}; color:${fg}">
+                            ${line.designation || line.name || ''}
+                        </span>
+                    `;
+                }).join('');
 
                 return `
                     <div class="news-item">
